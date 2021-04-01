@@ -1,8 +1,8 @@
-INCLUDE:=-I../../kubernetes/api
+INCLUDE:=
 LIBS:=-lwebsockets
 CFLAGS:=-g
 BIN:= websocket_client
-OBJECTS:=main.o
+OBJECTS:=main.o wsclient.o
 
 all: $(OBJECTS)
 	$(CC) -o $(BIN) $(OBJECTS) $(LIBS)

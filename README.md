@@ -22,7 +22,7 @@ make
 
 ## Run websocket server
 ```shell
-https://github.com/ityuhui/webserver-go.git
+git clone https://github.com/ityuhui/webserver-go.git
 cd webserver-go/
 go run main.go
 ```
