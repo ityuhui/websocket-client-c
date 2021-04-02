@@ -12,7 +12,7 @@ typedef struct wsclient_t {
 
 wsclient_t* wsclient_create(const char *, int);
 void wsclient_free(wsclient_t *);
-void wsclient_run(wsclient_t *);
+int wsclient_run(wsclient_t *);
 
 #ifdef  __cplusplus
 }
