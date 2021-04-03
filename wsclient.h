@@ -5,14 +5,9 @@
 extern "C" {
 #endif
 
-typedef struct wsclient_t {
-    char    *url;
-    int     port;
-} wsclient_t;
-
-wsclient_t* wsclient_create(const char *, int);
-void wsclient_free(wsclient_t *);
-int wsclient_run(wsclient_t *);
+int wsclient_create(const char *, const char *, int);
+void wsclient_free();
+int wsclient_run();
 
 #ifdef  __cplusplus
 }
