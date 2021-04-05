@@ -1,5 +1,5 @@
 INCLUDE:=
-LIBS:=-lwebsockets
+LIBS:=-lwebsockets -L/usr/local/lib
 CFLAGS:=-g
 BIN:= websocket_client
 OBJECTS:=main.o wsclient.o

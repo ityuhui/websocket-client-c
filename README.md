@@ -28,5 +28,5 @@ go run main.go
 ```
 ## Run
 ```shell
-./websocket_client
+LD_LIBRARY_PATH=/usr/local/lib/ ./websocket_client
 ```
