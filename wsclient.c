@@ -128,14 +128,18 @@ static int callback_wsclient(struct lws *wsi, enum lws_callback_reasons reason,
 		goto do_retry;
 		break;
 
-	case LWS_CALLBACK_CLIENT_RECEIVE:
-		lwsl_hexdump_notice(in, len);
-		break;
-
 	case LWS_CALLBACK_CLIENT_ESTABLISHED:
 		lwsl_user("%s: established\n", __func__);
 		break;
 
+	case LWS_CALLBACK_CLIENT_RECEIVE:
+		lwsl_hexdump_notice(in, len);
+		break;
+
+	case LWS_CALLBACK_CLIENT_WRITEABLE:
+
+		break;
+		
 	case LWS_CALLBACK_CLIENT_CLOSED:
 		goto do_retry;
 
