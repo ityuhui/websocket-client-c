@@ -7,6 +7,8 @@ typedef struct wsclient_t {
     char    *server_address;
     char    *path;
     int     port;
+	char    *data_to_send;
+	long    data_to_send_len;
 	void 	*data_received;
 	long 	data_received_len;
 	data_callback_func data_callback_func;
@@ -135,14 +137,23 @@ static int callback_wsclient(struct lws *wsi, enum lws_callback_reasons reason,
 		break;
 
 	case LWS_CALLBACK_CLIENT_RECEIVE:
-		lwsl_hexdump_notice(in, len);
+		if (wsc->data_callback_func) {
+			wsc->data_callback_func(&in, &len);
+		} else {
+			lwsl_hexdump_notice(in, len);
+		}
 		break;
 
 	case LWS_CALLBACK_CLIENT_WRITEABLE:
-		int m = lws_write(wsi, msg + LWS_PRE, 128, LWS_WRITE_TEXT);
-		if (m < 128) {
-			lwsl_err("sending message failed: %d\n", m);
-			return -1;
+		lwsl_user("LWS_CALLBACK_CLIENT_WRITEABLE : %ld,%s\n", wsc->data_to_send_len, wsc->data_to_send);
+		if (wsc->data_to_send_len >0 && wsc->data_to_send) {
+			int m = lws_write(wsi, wsc->data_to_send + LWS_PRE, wsc->data_to_send_len, LWS_WRITE_TEXT);
+			if (m < wsc->data_to_send_len) {
+				lwsl_err("sending message failed: %d\n", m);
+				return -1;
+			} else {
+				lwsl_user("succeed to send message : %d\n", m);
+			}
 		}
 		break;
 		
@@ -183,8 +194,14 @@ static const struct lws_protocols protocols[] = {
 int wsclient_run(const char *data_send)
 {
 	int n = 0;
-	int log_mask = LLL_USER | LLL_ERR | LLL_WARN | LLL_NOTICE;
+	int log_mask = LLL_ERR /*| LLL_USER | LLL_WARN | LLL_NOTICE*/;
 	lws_set_log_level(log_mask, NULL);
+
+	if (data_send) {
+		g_wsc->data_to_send_len = strlen(data_send);
+		g_wsc->data_to_send = (char *)calloc(g_wsc->data_to_send_len + 1 + LWS_PRE, 1);
+		strncpy(g_wsc->data_to_send + LWS_PRE, data_send, g_wsc->data_to_send_len);
+	}
 
     struct lws_context_creation_info info;
     memset(&info, 0, sizeof(struct lws_context_creation_info));

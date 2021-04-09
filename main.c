@@ -3,6 +3,7 @@
 
 void data_callback(void **p_data_received, long *p_data_received_len)
 {
+    printf("Received %ld bytes: %s\n", *p_data_received_len, (char *)*p_data_received);
 }
 
 int main()
@@ -17,7 +18,7 @@ int main()
         return -1;
     }
 
-    const char *exec_cmd = "ls /";
+    const char *exec_cmd = "hello";
     wsclient_run(exec_cmd);
 
 
