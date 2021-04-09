@@ -7,11 +7,18 @@ typedef struct wsclient_t {
     char    *server_address;
     char    *path;
     int     port;
+	void 	*data_received;
+	long 	data_received_len;
+	data_callback_func data_callback_func;
+	wsc_run_mode mode;
+	lws_sorted_usec_list_t	sul;	     /* schedule connection retry */
+	struct lws		*wsi;	     /* related wsi if any */
+	uint16_t		retry_count; /* count of consequetive retries */
 } wsclient_t;
 
 static wsclient_t *g_wsc = NULL;
 
-int wsclient_create(const char *server_address, const char *path, int ws_port)
+int wsclient_create(const char *server_address, const char *path, int ws_port, data_callback_func data_callback_func, wsc_run_mode mode)
 {
     g_wsc = (wsclient_t *)calloc(1, sizeof(wsclient_t));
 	if (!g_wsc) {
@@ -24,6 +31,8 @@ int wsclient_create(const char *server_address, const char *path, int ws_port)
         g_wsc->path = strdup(path);
     }
     g_wsc->port = ws_port;
+	g_wsc->data_callback_func = data_callback_func;
+	g_wsc->mode = mode;
 	return 0;
 }
 
@@ -32,31 +41,21 @@ void wsclient_free()
     if (!g_wsc) {
         return ;
     }
-
     if (g_wsc->server_address) {
         free(g_wsc->server_address);
         g_wsc->server_address = NULL;
     }
-
 	if (g_wsc->path) {
         free(g_wsc->path);
         g_wsc->path = NULL;
     }
+	g_wsc->data_received = NULL;
+	g_wsc->data_received_len = 0;
+	g_wsc->data_callback_func = NULL;
 
     free(g_wsc);
 	g_wsc = NULL;
 }
-
-/*
- * This represents your object that "contains" the client connection and has
- * the client connection bound to it
- */
-
-static struct wsclient_connection {
-	lws_sorted_usec_list_t	sul;	     /* schedule connection retry */
-	struct lws		*wsi;	     /* related wsi if any */
-	uint16_t		retry_count; /* count of consequetive retries */
-} wscc ;
 
 static struct lws_context *context;
 static int interrupted;
@@ -84,7 +83,7 @@ static const lws_retry_bo_t retry = {
 
 static void connect_client(lws_sorted_usec_list_t *sul)
 {
-	struct wsclient_connection *wscc = lws_container_of(sul, struct wsclient_connection, sul);
+	wsclient_t *wsc = lws_container_of(sul, wsclient_t, sul);
 	struct lws_client_connect_info i;
 
 	memset(&i, 0, sizeof(i));
@@ -98,9 +97,9 @@ static void connect_client(lws_sorted_usec_list_t *sul)
 	//i.ssl_connection = ssl_connection;
 	//i.protocol = pro;
 	i.local_protocol_name = "websocket-client";
-	i.pwsi = &wscc->wsi;
-	i.retry_and_idle_policy = &retry;
-	i.userdata = wscc;
+	i.pwsi = &wsc->wsi;
+	//i.retry_and_idle_policy = &retry;
+	i.userdata = wsc;
 
 	if (!lws_client_connect_via_info(&i))
 		/*
@@ -109,7 +108,7 @@ static void connect_client(lws_sorted_usec_list_t *sul)
 		 * point.
 		 */
 		if (lws_retry_sul_schedule(context, 0, sul, &retry,
-					   connect_client, &wscc->retry_count)) {
+					   connect_client, &wsc->retry_count)) {
 			lwsl_err("%s: connection attempts exhausted\n", __func__);
 			interrupted = 1;
 		}
@@ -118,7 +117,9 @@ static void connect_client(lws_sorted_usec_list_t *sul)
 static int callback_wsclient(struct lws *wsi, enum lws_callback_reasons reason,
 		 void *user, void *in, size_t len)
 {
-	struct wsclient_connection *wscc = (struct wsclient_connection *)user;
+	lwsl_user("%s: callback reason %d\n", __func__, reason);
+
+	wsclient_t *wsc = (wsclient_t *)user;
 
 	switch (reason) {
 
@@ -130,6 +131,7 @@ static int callback_wsclient(struct lws *wsi, enum lws_callback_reasons reason,
 
 	case LWS_CALLBACK_CLIENT_ESTABLISHED:
 		lwsl_user("%s: established\n", __func__);
+		lws_callback_on_writable(wsi);
 		break;
 
 	case LWS_CALLBACK_CLIENT_RECEIVE:
@@ -137,7 +139,11 @@ static int callback_wsclient(struct lws *wsi, enum lws_callback_reasons reason,
 		break;
 
 	case LWS_CALLBACK_CLIENT_WRITEABLE:
-
+		int m = lws_write(wsi, msg + LWS_PRE, 128, LWS_WRITE_TEXT);
+		if (m < 128) {
+			lwsl_err("sending message failed: %d\n", m);
+			return -1;
+		}
 		break;
 		
 	case LWS_CALLBACK_CLIENT_CLOSED:
@@ -160,8 +166,8 @@ do_retry:
 	 * elements in the backoff table, it will never give up and keep
 	 * retrying at the last backoff delay plus the random jitter amount.
 	 */
-	if (lws_retry_sul_schedule_retry_wsi(wsi, &wscc->sul, connect_client,
-					     &wscc->retry_count)) {
+	if (lws_retry_sul_schedule_retry_wsi(wsi, &wsc->sul, connect_client,
+					     &wsc->retry_count)) {
 		lwsl_err("%s: connection attempts exhausted\n", __func__);
 		interrupted = 1;
 	}
@@ -174,9 +180,12 @@ static const struct lws_protocols protocols[] = {
 	{ NULL, NULL, 0, 0 }
 };
 
-int wsclient_run(wsclient_t *wsc)
+int wsclient_run(const char *data_send)
 {
 	int n = 0;
+	int log_mask = LLL_USER | LLL_ERR | LLL_WARN | LLL_NOTICE;
+	lws_set_log_level(log_mask, NULL);
+
     struct lws_context_creation_info info;
     memset(&info, 0, sizeof(struct lws_context_creation_info));
 
@@ -193,7 +202,7 @@ int wsclient_run(wsclient_t *wsc)
 	}
 
     /* schedule the first client connection attempt to happen immediately */
-	lws_sul_schedule(context, 0, &wscc.sul, connect_client, 1);
+	lws_sul_schedule(context, 0, &g_wsc->sul, connect_client, 1);
 
 	while (n >= 0 && !interrupted) {
 		n = lws_service(context, 0);
