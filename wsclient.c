@@ -1,62 +1,47 @@
 #include "wsclient.h"
-#include <libwebsockets.h>
 #include <stdlib.h>
 #include <string.h>
 
-typedef struct wsclient_t {
-    char    *server_address;
-    char    *path;
-    int     port;
-	char    *data_to_send;
-	long    data_to_send_len;
-	void 	*data_received;
-	long 	data_received_len;
-	data_callback_func data_callback_func;
-	wsc_run_mode mode;
-	lws_sorted_usec_list_t	sul;	     /* schedule connection retry */
-	struct lws		*wsi;	     /* related wsi if any */
-	uint16_t		retry_count; /* count of consequetive retries */
-} wsclient_t;
+//static wsclient_t *g_wsc = NULL;
 
-static wsclient_t *g_wsc = NULL;
-
-int wsclient_create(const char *server_address, const char *path, int ws_port, data_callback_func data_callback_func, wsc_run_mode mode)
+wsclient_t* wsclient_create(const char *server_address, const char *path, int ws_port)
 {
-    g_wsc = (wsclient_t *)calloc(1, sizeof(wsclient_t));
-	if (!g_wsc) {
-		return -1;
+    wsclient_t *wsc = (wsclient_t *)calloc(1, sizeof(wsclient_t));
+	if (!wsc) {
+		return NULL;
 	}
     if (server_address) {
-        g_wsc->server_address = strdup(server_address);
+        wsc->server_address = strdup(server_address);
     }
 	if (path) {
-        g_wsc->path = strdup(path);
+        wsc->path = strdup(path);
     }
-    g_wsc->port = ws_port;
-	g_wsc->data_callback_func = data_callback_func;
-	g_wsc->mode = mode;
-	return 0;
+    wsc->port = ws_port;
+	return wsc;
 }
 
-void wsclient_free()
+void wsclient_free(wsclient_t *wsc)
 {
-    if (!g_wsc) {
+    if (!wsc) {
         return ;
     }
-    if (g_wsc->server_address) {
-        free(g_wsc->server_address);
-        g_wsc->server_address = NULL;
+    if (wsc->server_address) {
+        free(wsc->server_address);
+        wsc->server_address = NULL;
     }
-	if (g_wsc->path) {
-        free(g_wsc->path);
-        g_wsc->path = NULL;
+	if (wsc->path) {
+        free(wsc->path);
+        wsc->path = NULL;
     }
-	g_wsc->data_received = NULL;
-	g_wsc->data_received_len = 0;
-	g_wsc->data_callback_func = NULL;
+	if (wsc->data_received) {
+		free(wsc->data_received);
+		wsc->data_received = NULL;
+	}
+	wsc->data_received_len = 0;
+	wsc->data_callback_func = NULL;
 
-    free(g_wsc);
-	g_wsc = NULL;
+    free(wsc);
+	wsc = NULL;
 }
 
 static struct lws_context *context;
@@ -91,9 +76,9 @@ static void connect_client(lws_sorted_usec_list_t *sul)
 	memset(&i, 0, sizeof(i));
 
 	i.context = context;
-	i.port = g_wsc->port;
-	i.address = g_wsc->server_address;
-	i.path = g_wsc->path;
+	i.port = wsc->port;
+	i.address = wsc->server_address;
+	i.path = wsc->path;
 	i.host = i.address;
 	i.origin = i.address;
 	//i.ssl_connection = ssl_connection;
@@ -137,10 +122,13 @@ static int callback_wsclient(struct lws *wsi, enum lws_callback_reasons reason,
 		break;
 
 	case LWS_CALLBACK_CLIENT_RECEIVE:
+		//lwsl_hexdump_notice(in, len);
 		if (wsc->data_callback_func) {
 			wsc->data_callback_func(&in, &len);
 		} else {
-			lwsl_hexdump_notice(in, len);
+			wsc->data_received_len = len;
+			wsc->data_received = strdup((char *)in);
+			interrupted = 1;
 		}
 		break;
 
@@ -191,16 +179,16 @@ static const struct lws_protocols protocols[] = {
 	{ NULL, NULL, 0, 0 }
 };
 
-int wsclient_run(const char *data_send)
+int wsclient_run(wsclient_t *wsc, const char *data_send)
 {
 	int n = 0;
 	int log_mask = LLL_ERR /*| LLL_USER | LLL_WARN | LLL_NOTICE*/;
 	lws_set_log_level(log_mask, NULL);
 
 	if (data_send) {
-		g_wsc->data_to_send_len = strlen(data_send);
-		g_wsc->data_to_send = (char *)calloc(g_wsc->data_to_send_len + 1 + LWS_PRE, 1);
-		strncpy(g_wsc->data_to_send + LWS_PRE, data_send, g_wsc->data_to_send_len);
+		wsc->data_to_send_len = strlen(data_send);
+		wsc->data_to_send = (char *)calloc(wsc->data_to_send_len + 1 + LWS_PRE, 1);
+		strncpy(wsc->data_to_send + LWS_PRE, data_send, wsc->data_to_send_len);
 	}
 
     struct lws_context_creation_info info;
@@ -219,7 +207,7 @@ int wsclient_run(const char *data_send)
 	}
 
     /* schedule the first client connection attempt to happen immediately */
-	lws_sul_schedule(context, 0, &g_wsc->sul, connect_client, 1);
+	lws_sul_schedule(context, 0, &wsc->sul, connect_client, 1);
 
 	while (n >= 0 && !interrupted) {
 		n = lws_service(context, 0);
