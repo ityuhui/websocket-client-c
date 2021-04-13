@@ -17,6 +17,8 @@ wsclient_t* wsclient_create(const char *server_address, const char *path, int ws
         wsc->path = strdup(path);
     }
     wsc->port = ws_port;
+	wsc->mode = WSC_MODE_EXEC;
+
 	return wsc;
 }
 
@@ -85,7 +87,7 @@ static void connect_client(lws_sorted_usec_list_t *sul)
 	//i.protocol = pro;
 	i.local_protocol_name = "websocket-client";
 	i.pwsi = &wsc->wsi;
-	//i.retry_and_idle_policy = &retry;
+	i.retry_and_idle_policy = &retry;
 	i.userdata = wsc;
 
 	if (!lws_client_connect_via_info(&i))
