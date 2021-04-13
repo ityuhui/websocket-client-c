@@ -1,8 +1,11 @@
 #include "wsclient.h"
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
+#include <fcntl.h>
 
-//static wsclient_t *g_wsc = NULL;
+#define WSC_ATTACH_STDIN_BUFFER_SIZE 1024
 
 wsclient_t* wsclient_create(const char *server_address, const char *path, int ws_port)
 {
@@ -135,7 +138,6 @@ static int callback_wsclient(struct lws *wsi, enum lws_callback_reasons reason,
 		break;
 
 	case LWS_CALLBACK_CLIENT_WRITEABLE:
-		lwsl_user("LWS_CALLBACK_CLIENT_WRITEABLE : %ld,%s\n", wsc->data_to_send_len, wsc->data_to_send);
 		if (wsc->data_to_send_len >0 && wsc->data_to_send) {
 			int m = lws_write(wsi, wsc->data_to_send + LWS_PRE, wsc->data_to_send_len, LWS_WRITE_TEXT);
 			if (m < wsc->data_to_send_len) {
@@ -143,6 +145,11 @@ static int callback_wsclient(struct lws *wsi, enum lws_callback_reasons reason,
 				return -1;
 			} else {
 				lwsl_user("succeed to send message : %d\n", m);
+			}
+			if (wsc->data_to_send) {
+				free(wsc->data_to_send);
+				wsc->data_to_send = NULL;
+				wsc->data_to_send_len = 0;
 			}
 		}
 		break;
@@ -181,13 +188,33 @@ static const struct lws_protocols protocols[] = {
 	{ NULL, NULL, 0, 0 }
 };
 
+void read_from_stdin(wsclient_t *wsc)
+{
+	char wsc_attach_stdin_buffer[WSC_ATTACH_STDIN_BUFFER_SIZE];
+	memset(wsc_attach_stdin_buffer, 0, sizeof(wsc_attach_stdin_buffer));
+	
+	int flag, newflag;
+	flag = fcntl(STDIN_FILENO, F_GETFL);
+	newflag = flag | O_NONBLOCK;
+	fcntl(STDIN_FILENO, F_SETFL, newflag);
+	fgets(wsc_attach_stdin_buffer,sizeof(wsc_attach_stdin_buffer) -1,stdin);
+
+	if (wsc_attach_stdin_buffer && strlen(wsc_attach_stdin_buffer) >0) {
+		wsc->data_to_send_len = strlen(wsc_attach_stdin_buffer);
+		wsc->data_to_send = (char *)calloc(wsc->data_to_send_len + 1 + LWS_PRE, 1);
+		strncpy(wsc->data_to_send + LWS_PRE, wsc_attach_stdin_buffer, wsc->data_to_send_len);
+	}
+
+	fcntl(STDIN_FILENO, F_SETFL, flag);
+}
+
 int wsclient_run(wsclient_t *wsc, const char *data_send)
 {
 	int n = 0;
-	int log_mask = LLL_ERR /*| LLL_USER | LLL_WARN | LLL_NOTICE*/;
+	int log_mask = LLL_ERR | LLL_USER | LLL_WARN | LLL_NOTICE;
 	lws_set_log_level(log_mask, NULL);
 
-	if (data_send) {
+	if (data_send && strlen(data_send) >0) {
 		wsc->data_to_send_len = strlen(data_send);
 		wsc->data_to_send = (char *)calloc(wsc->data_to_send_len + 1 + LWS_PRE, 1);
 		strncpy(wsc->data_to_send + LWS_PRE, data_send, wsc->data_to_send_len);
@@ -212,6 +239,9 @@ int wsclient_run(wsclient_t *wsc, const char *data_send)
 	lws_sul_schedule(context, 0, &wsc->sul, connect_client, 1);
 
 	while (n >= 0 && !interrupted) {
+		if (WSC_MODE_ATTACH == wsc->mode) {
+			read_from_stdin(wsc);
+		}
 		n = lws_service(context, 0);
 	}
 
@@ -219,4 +249,4 @@ int wsclient_run(wsclient_t *wsc, const char *data_send)
 	lwsl_user("%s: wsclient completed\n", __func__);
 
 	return 0;
-}   
+}

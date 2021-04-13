@@ -29,6 +29,18 @@ cd webserver-go/
 go run main.go
 ```
 ## Run
+
+### Export env
+```
+export LD_LIBRARY_PATH=/usr/local/lib/
+```
+
+### Run exec example 
 ```shell
-LD_LIBRARY_PATH=/usr/local/lib/ ./websocket_client
+./websocket_client
+```
+
+#### Run attach example
+```shell
+./websocket_client -1
 ```

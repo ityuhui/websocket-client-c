@@ -4,7 +4,7 @@
 
 void attach_data_callback(void **p_data_received, long *p_data_received_len)
 {
-    printf("Received %ld bytes: %s\n", *p_data_received_len, (char *)*p_data_received);
+    printf("%s: Received %ld bytes: %s", __func__,*p_data_received_len, (char *)*p_data_received);
 }
 
 void exec(wsclient_t *wsc, const char *cmd)
@@ -15,11 +15,12 @@ void exec(wsclient_t *wsc, const char *cmd)
 
 void attach(wsclient_t *wsc)
 {
+    wsc->mode = WSC_MODE_ATTACH;
     wsc->data_callback_func = attach_data_callback;
     wsclient_run(wsc, NULL);
 }
 
-int main()
+int main(int argc, char *argv[])
 {
     const char *ws_server_address = "192.168.22.117";
     const char *ws_path = "/ws";
@@ -31,8 +32,11 @@ int main()
         return -1;
     }
 
-    //exec(wsc, "hello");
-    attach(wsc);
+    if ( 1 == argc ) {
+        exec(wsc, "hello");
+    } else {
+        attach(wsc);
+    }
 
     wsclient_free(wsc);
     
