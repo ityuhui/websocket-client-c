@@ -1,7 +1,9 @@
 # websocket-client-c
 A demo of websocket c client using [libwebsockets](https://libwebsockets.org/)
 
-It can communicate with a websocket server [webserver-go](https://github.com/ityuhui/webserver-go)
+It can communicate with 
+* A simple websocket server [webserver-go](https://github.com/ityuhui/webserver-go) or
+* Kubernetes API server.
 
 The status is:  **Work In Progress**
 
@@ -22,12 +24,7 @@ make install
 make
 ```
 
-## Run websocket server
-```shell
-git clone https://github.com/ityuhui/webserver-go.git
-cd webserver-go/
-go run main.go
-```
+
 ## Run
 
 ### Export env
@@ -35,12 +32,33 @@ go run main.go
 export LD_LIBRARY_PATH=/usr/local/lib/
 ```
 
-### Run exec example 
+### Run simple_wsc
+#### Run websocket server
 ```shell
-./websocket_client
+git clone https://github.com/ityuhui/webserver-go.git
+cd webserver-go/
+go run main.go
+```
+#### Exec 
+```shell
+./simple_wsc
 ```
 
-### Run attach example
+#### Attach
 ```shell
-./websocket_client -1
+./simple_wsc -a
+```
+
+### Run k8s_wsc
+
+#### Ensure Kubernetes cluster is ready
+
+#### Exec 
+```shell
+./k8s_wsc
+```
+
+#### Attach
+```shell
+./k8s_wsc -a
 ```

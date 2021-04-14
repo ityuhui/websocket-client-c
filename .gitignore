@@ -1,4 +1,5 @@
-websocket_client
+simple_wsc
+k8s_wsc
 .vscode/
 # Prerequisites
 *.d
