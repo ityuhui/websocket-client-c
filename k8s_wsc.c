@@ -23,8 +23,8 @@ void attach(wsclient_t *wsc)
 int main(int argc, char *argv[])
 {
     const char *ws_server_address = "192.168.22.117";
-    const char *ws_path = "/ws";
-    int ws_port = 8080;
+    const char *ws_path = "/api/v1/namespaces/default/pods/test-pod-8/exec?command=ls&container=my-container&stdin=true&stdout=true&tty=true";
+    int ws_port = 6443;
 
     wsclient_t *wsc = wsclient_create(ws_server_address, ws_path, ws_port);
     if (!wsc) {
@@ -33,7 +33,7 @@ int main(int argc, char *argv[])
     }
 
     if ( 1 == argc ) {
-        exec(wsc, "hello");
+        exec(wsc, "ls");
     } else {
         attach(wsc);
     }
