@@ -26,7 +26,7 @@ int main(int argc, char *argv[])
     const char *ws_path = "/ws";
     int ws_port = 8080;
 
-    wsclient_t *wsc = wsclient_create(ws_server_address, ws_path, ws_port);
+    wsclient_t *wsc = wsclient_create(ws_server_address, ws_path, ws_port, NULL);
     if (!wsc) {
         fprintf(stderr, "Cannot create a websocket client.\n");
         return -1;

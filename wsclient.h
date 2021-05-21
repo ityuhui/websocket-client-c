@@ -2,6 +2,7 @@
 #define _WSCLIENT_H
 
 #include <libwebsockets.h>
+#include "sslconfig.h"
 
 #ifdef  __cplusplus
 extern "C" {
@@ -27,9 +28,10 @@ typedef struct wsclient_t {
 	lws_sorted_usec_list_t	sul;	     /* schedule connection retry */
 	struct lws		*wsi;	     /* related wsi if any */
 	uint16_t		retry_count; /* count of consequetive retries */
+	sslConfig_t  	*ssl_config;
 } wsclient_t;
 
-wsclient_t* wsclient_create(const char *, const char *, int);
+wsclient_t* wsclient_create(const char *, const char *, int, sslConfig_t *);
 void wsclient_free(wsclient_t *);
 int wsclient_run(wsclient_t *, const char *);
 

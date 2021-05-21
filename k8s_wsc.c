@@ -26,7 +26,7 @@ int main(int argc, char *argv[])
     const char *ws_path = "/api/v1/namespaces/default/pods/test-pod-8/exec?command=ls&container=my-container&stdin=true&stdout=true&tty=true";
     int ws_port = 6443;
 
-    wsclient_t *wsc = wsclient_create(ws_server_address, ws_path, ws_port);
+    wsclient_t *wsc = wsclient_create(ws_server_address, ws_path, ws_port, NULL);
     if (!wsc) {
         fprintf(stderr, "Cannot create a websocket client.\n");
         return -1;

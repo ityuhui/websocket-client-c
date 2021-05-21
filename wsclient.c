@@ -7,7 +7,7 @@
 
 #define WSC_ATTACH_STDIN_BUFFER_SIZE 1024
 
-wsclient_t* wsclient_create(const char *server_address, const char *path, int ws_port)
+wsclient_t* wsclient_create(const char *server_address, const char *path, int ws_port, sslConfig_t *ssl_config)
 {
     wsclient_t *wsc = (wsclient_t *)calloc(1, sizeof(wsclient_t));
 	if (!wsc) {
@@ -21,7 +21,7 @@ wsclient_t* wsclient_create(const char *server_address, const char *path, int ws
     }
     wsc->port = ws_port;
 	wsc->mode = WSC_MODE_EXEC;
-
+	wsc->ssl_config = ssl_config;
 	return wsc;
 }
 
@@ -44,7 +44,8 @@ void wsclient_free(wsclient_t *wsc)
 	}
 	wsc->data_received_len = 0;
 	wsc->data_callback_func = NULL;
-
+	wsc->ssl_config = NULL;
+	
     free(wsc);
 	wsc = NULL;
 }
@@ -86,7 +87,7 @@ static void connect_client(lws_sorted_usec_list_t *sul)
 	i.path = wsc->path;
 	i.host = i.address;
 	i.origin = i.address;
-	//i.ssl_connection = ssl_connection;
+	i.ssl_connection = wsc->ssl_config ? LCCSCF_USE_SSL : 0;
 	//i.protocol = pro;
 	i.local_protocol_name = "websocket-client";
 	i.pwsi = &wsc->wsi;
@@ -226,8 +227,12 @@ int wsclient_run(wsclient_t *wsc, const char *data_send)
     info.options = LWS_SERVER_OPTION_DO_SSL_GLOBAL_INIT;
     info.port = CONTEXT_PORT_NO_LISTEN; /* we do not run any server */
     info.protocols = protocols;
-    //info.client_ssl_ca_filepath = "";
     info.fd_limit_per_thread = 1 + 1 + 1;
+	if (wsc->ssl_config) {
+		info.client_ssl_ca_filepath =  wsc->ssl_config->CACertFile;
+		info.client_ssl_private_key_filepath = wsc->ssl_config->clientKeyFile;
+		info.client_ssl_cert_filepath = wsc->ssl_config->clientCertFile;
+	}
 
     context = lws_create_context(&info);
     if (!context) {
