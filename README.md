@@ -53,12 +53,13 @@ go run main.go
 
 #### Ensure Kubernetes cluster is ready
 
-#### Exec 
+#### Normal mode 
 ```shell
-./k8s_wsc
+./k8s_wsc $pod_name "ls /"
+./k8s_wsc $pod_name $container_name "ls /"
 ```
 
-#### Attach
+#### IT mode
 ```shell
-./k8s_wsc -a
+./k8s_wsc -it
 ```
