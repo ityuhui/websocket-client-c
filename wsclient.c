@@ -23,6 +23,7 @@ wsclient_t* wsclient_create(const char *server_address, const char *path, int ws
 	wsc->mode = WSC_MODE_NORMAL;
 	wsc->ssl_config = ssl_config;
 	wsc->log_mask = ws_log_mask;
+	wsc->input_perfix = 0;
 	return wsc;
 }
 
@@ -111,7 +112,7 @@ static void connect_client(lws_sorted_usec_list_t *sul)
 static int callback_wsclient(struct lws *wsi, enum lws_callback_reasons reason,
 		 void *user, void *in, size_t len)
 {
-	lwsl_user("%s: callback reason %d\n", __func__, reason);
+	//lwsl_user("%s: callback reason %d\n", __func__, reason);
 
 	wsclient_t *wsc = (wsclient_t *)user;
 
@@ -145,7 +146,7 @@ static int callback_wsclient(struct lws *wsi, enum lws_callback_reasons reason,
 
 	case LWS_CALLBACK_CLIENT_WRITEABLE:
 		if (wsc->data_to_send_len >0 && wsc->data_to_send) {
-			int m = lws_write(wsi, wsc->data_to_send + LWS_PRE, wsc->data_to_send_len, LWS_WRITE_TEXT);
+			int m = lws_write(wsi, wsc->data_to_send + LWS_PRE, wsc->data_to_send_len, LWS_WRITE_BINARY);
 			if (m < wsc->data_to_send_len) {
 				lwsl_err("sending message failed: %d\n", m);
 				return -1;
@@ -207,9 +208,10 @@ void read_from_stdin(wsclient_t *wsc)
 	fgets(wsc_attach_stdin_buffer,sizeof(wsc_attach_stdin_buffer) -1,stdin);
 
 	if (wsc_attach_stdin_buffer && strlen(wsc_attach_stdin_buffer) >0) {
-		wsc->data_to_send_len = strlen(wsc_attach_stdin_buffer);
-		wsc->data_to_send = (char *)calloc(wsc->data_to_send_len + 1 + LWS_PRE, 1);
-		strncpy(wsc->data_to_send + LWS_PRE, wsc_attach_stdin_buffer, wsc->data_to_send_len);
+		wsc->data_to_send_len = strlen(wsc_attach_stdin_buffer) + 1 /*wsc->input_perfix*/;
+		wsc->data_to_send = (char *)calloc(LWS_PRE + 1 /* wsc->input_perfix */ + wsc->data_to_send_len + 1, 1);
+		wsc->data_to_send[LWS_PRE] = wsc->input_perfix;
+		strncpy(wsc->data_to_send + LWS_PRE + 1, wsc_attach_stdin_buffer, strlen(wsc_attach_stdin_buffer));
 	}
 
 	fcntl(STDIN_FILENO, F_SETFL, flag);

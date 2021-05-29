@@ -14,14 +14,11 @@ void attach_data_callback(void **p_data_received, long *p_data_received_len)
 
 void exec(wsclient_t *wsc, wsc_mode_t mode, const char *cmd)
 {
+    if ( WSC_MODE_IT == mode) {
+        wsc->data_callback_func = attach_data_callback;
+    }
     wsclient_run(wsc, mode, cmd);
     printf("%s: Received %ld bytes: \n%s\n", __func__, wsc->data_received_len, (char *)wsc->data_received);
-}
-
-void attach(wsclient_t *wsc)
-{
-    wsc->data_callback_func = attach_data_callback;
-    wsclient_run(wsc, WSC_MODE_IT, NULL);
 }
 
 void escapeUrlCharacter(char *escaped, int escaped_buffer_size, const char chr)
@@ -59,6 +56,7 @@ int main(int argc, char *argv[])
 {
     const char *ws_path_template_without_container = "/api/v1/namespaces/default/pods/%s/exec?stdin=true&stdout=true&command=%s";
     const char *ws_path_template_with_container = "/api/v1/namespaces/default/pods/%s/exec?stdin=true&stdout=true&container=%s&command=%s";
+    const char *ws_path_template_for_bash = "/api/v1/namespaces/default/pods/%s/exec?stdin=true&stdout=true&tty=true&container=%s&command=%s";
 
     char *pod_name = NULL;
     char *container_name = NULL;
@@ -75,7 +73,7 @@ int main(int argc, char *argv[])
         command = argv[3];
     } else {
         printf("Usage sample: ./k8s_wsc test-pod-8 my-container \"ls /dev\"\n");
-        printf("Usage sample: ./k8s_wsc test-pod-8 my-container \"ls /dev\"\n");
+        printf("Usage sample: ./k8s_wsc test-pod-8 my-container \"bash\"\n");
         return -1;
     }
 
@@ -87,11 +85,17 @@ int main(int argc, char *argv[])
 
     char ws_path[WS_PATH_BUFFER_SIZE];
     memset(ws_path, 0, sizeof(ws_path));
-    if ( 3 == argc) {
+    if (strstr(command, "bash")) {
+        mode = WSC_MODE_IT;
+        snprintf(ws_path, WS_PATH_BUFFER_SIZE, ws_path_template_for_bash, pod_name, container_name, url_command_string);
+    } else if ( 3 == argc) {
         snprintf(ws_path, WS_PATH_BUFFER_SIZE, ws_path_template_without_container, pod_name, url_command_string);
     } else {
         snprintf(ws_path, WS_PATH_BUFFER_SIZE, ws_path_template_with_container, pod_name, container_name, url_command_string);
     }
+
+
+
     printf("ws_path=%s\n", ws_path);
 
     int ws_port = 6443;
@@ -102,7 +106,7 @@ int main(int argc, char *argv[])
     sslconfig->clientKeyFile = strdup("/root/k8s_cert/kubeconfig-Ilh604");
     sslconfig->insecureSkipTlsVerify = 0;
 
-    int ws_log_mask = LLL_ERR | LLL_WARN /*| LLL_USER | LLL_NOTICE | LLL_CLIENT*/;
+    int ws_log_mask = LLL_ERR | LLL_WARN /*| LLL_USER | LLL_NOTICE*/;
     wsclient_t *wsc = wsclient_create(ws_server_address, ws_path, ws_port, ws_log_mask, sslconfig);
     if (!wsc) {
         fprintf(stderr, "Cannot create a websocket client.\n");
