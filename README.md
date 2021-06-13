@@ -61,5 +61,5 @@ go run main.go
 
 #### IT mode
 ```shell
-./k8s_wsc -it
+./k8s_wsc -it $pod_name $container_name "bash"
 ```
